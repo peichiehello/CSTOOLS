@@ -133,12 +133,49 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0ede8; color: #1a1
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { width: 14px; height: 14px; border: 2px solid #4a4a4c; border-top-color: #e8e4dd; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
 
+/* ── 雙頁預覽樣式 ── */
+.print-page { position: relative; padding-bottom: 2rem; }
+.page-break { page-break-after: always; break-after: page; height: 0; }
+.page-footer-label {
+  text-align: center; font-size: 11px; color: #888;
+  border-top: 0.5px solid #ccc; padding-top: 6px; margin-top: 1.5rem;
+  letter-spacing: 0.05em; font-family: 'Noto Sans TC', sans-serif;
+}
+
+/* 預覽時兩份之間加分隔線 */
+.page-break-preview {
+  border: none; border-top: 2px dashed #ddd;
+  margin: 2rem 0; max-width: 720px; margin-left: auto; margin-right: auto;
+}
+
 @media print {
+  @page { size: A4 portrait; margin: 8mm 10mm; }
   body { background: white; }
   .app { display: block; }
-  .sidebar, .preview-toolbar { display: none; }
+  .sidebar, .preview-toolbar { display: none !important; }
   .preview-area { padding: 0; }
-  #doc-output { box-shadow: none; max-width: 100%; padding: 8mm 14mm; border-radius: 0; display: block !important; }
+  #doc-output {
+    box-shadow: none !important; width: 100% !important; max-width: 100% !important;
+    padding: 0 !important; margin: 0 !important; border-radius: 0 !important;
+    display: block !important; font-size: 11px !important; line-height: 1.45 !important;
+  }
+  .print-page { page-break-inside: avoid; break-inside: avoid; }
+  .page-break { page-break-after: always; break-after: page; }
+  #doc-output { font-size: 10.5px !important; line-height: 1.4 !important; }
+  .doc-title { font-size: 14px !important; margin-bottom: 0.3rem !important; padding-bottom: 0.3rem !important; }
+  .doc-section-title { margin: 0.25rem 0 0.1rem !important; font-size: 11px !important; }
+  .clause-block { margin-bottom: 0.15rem !important; }
+  .c-body { margin-left: 1rem !important; }
+  .fixed-clauses { margin-top: 0.2rem !important; }
+  .fixed-clauses p { margin-bottom: 0.08rem !important; text-indent: 1.5em !important; }
+  .sign-section { margin-top: 0.4rem !important; padding-top: 0.3rem !important; }
+  .sign-grid { gap: 0.4rem !important; }
+  .sign-box { padding: 6px 8px !important; font-size: 10.5px !important; }
+  .sign-line { min-height: 32px !important; }
+  .agree-row { margin-bottom: 0.3rem !important; }
+  .vehicle-info { margin-bottom: 0.3rem !important; }
+  .page-footer-label { font-size: 10px !important; color: #555 !important; margin-top: 0.8rem !important; padding-top: 4px !important; }
+  .save-notice { display: none !important; }
   #doc-preview-placeholder { display: none !important; }
   #records-view { display: none !important; }
 }
@@ -169,6 +206,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0ede8; color: #1a1
 .btn-del-rec { background: none; border: 0.5px solid #ffb3b3; border-radius: 4px; color: #ff453a; font-size: 11px; padding: 3px 8px; cursor: pointer; font-family: inherit; transition: all .15s; }
 .btn-del-rec:hover { background: #fff0f0; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -303,7 +341,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0ede8; color: #1a1
 </div>
 <div class="sidebar-footer">
   <button class="btn-generate" onclick="generateDoc()">產生協議書預覽</button>
-  <button class="btn-save" onclick="saveRecord()" id="btn-save" style="display:none;">💾 儲存至紀錄</button>
+  <button class="btn-save" onclick="saveRecord()" id="btn-save" style="display:none;">💾 儲存檔案</button>
 </div>
 </aside>
 
@@ -311,11 +349,13 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0ede8; color: #1a1
 <main class="preview-area">
   <div class="preview-toolbar">
     <div class="view-tabs">
+      <button class="view-tab" onclick="window.location.href='cs-report.html'" style="color:#c8a96e; border-color:#c8a96e55;">↩ 特案報告</button>
       <button class="view-tab active" id="vtab-doc" onclick="switchView('doc')">協議書預覽</button>
       <button class="view-tab" id="vtab-records" onclick="switchView('records')">📋 紀錄管理</button>
     </div>
-    <div id="toolbar-doc-btns">
-      <button class="btn-print" onclick="window.print()">🖨 列印 / 存 PDF</button>
+    <div id="toolbar-doc-btns" style="display:flex; gap:8px;">
+      <button class="btn-print" onclick="saveAndPrint()">🖨 儲存並列印</button>
+      <button class="btn-print" onclick="savePDF()" style="background:#c8a96e; color:#1a1a1c;">⬇ 存 PDF</button>
     </div>
     <div id="toolbar-rec-btns" style="display:none;">
       <button class="btn-print" onclick="exportCSV()">⬇ 匯出 CSV</button>
@@ -682,11 +722,11 @@ function generateDoc() {
     <div class="agree-row">
       <div class="agree-cell">
         <div class="alabel">甲方</div>
-        銘勁汽車股份有限公司（以下簡稱甲方）${branch || '中壢服務廠'}<br>簽章：________________
+        銘勁汽車股份有限公司（以下簡稱甲方）<br>${branch || '中壢服務廠'}　　代表人：${ph(rep,'　　　　')}<br><br><br>簽章：________________
       </div>
       <div class="agree-cell">
         <div class="alabel">乙方（消費者）</div>
-        ${ph(name,'　　　　')}（以下簡稱乙方）　簽章：________________
+        ${ph(name,'　　　　')}（以下簡稱乙方）<br><br><br><br>簽章：________________
       </div>
     </div>
     <div style="font-size:13px; margin-bottom:0.2rem;">
@@ -717,26 +757,41 @@ function generateDoc() {
     </div>
 
     <div class="sign-section">
-      <div class="sign-grid">
-        <div class="sign-box">
+      <div class="sign-grid" style="align-items:stretch;">
+        <div class="sign-box" style="display:flex; flex-direction:column;">
           <div class="sign-role">甲方：銘勁汽車股份有限公司${branch ? branch : '中壢廠'}</div>
           <div class="sign-info">統編：90132360</div>
           <div class="sign-info">住址：${branchAddr}</div>
           <div class="sign-info" style="margin-top:4px;">代表人：${ph(rep,'　　　　　　　　')}</div>
-          <div class="sign-line"><div class="stamp-circle">公司<br>小圓章</div></div>
+          <div style="flex:1; min-height:16px;"></div>
+          <div style="font-size:12px; margin-bottom:2px;">簽章：</div>
+          <div style="border-bottom:0.5px solid #999; min-height:44px; position:relative;">
+            <div class="stamp-circle">公司<br>小圓章</div>
+          </div>
         </div>
-        <div class="sign-box">
+        <div class="sign-box" style="display:flex; flex-direction:column;">
           <div class="sign-role">乙方：${ph(name,'　　　　　　　　')}</div>
           <div class="sign-info">身分證字號：${ph(idno,'　　　　　　　　')}</div>
-          <div class="sign-line-addr"></div>
+          <div style="border-bottom:0.5px solid #999; margin:3px 0 6px;"></div>
           <div class="sign-info">住址：${ph(addr,'　　　　　　　　　　　　')}</div>
-          <div class="sign-line"></div>
-          <div class="sign-name">簽章：________________</div>
+          <div style="border-bottom:0.5px solid #999; margin:3px 0 6px;"></div>
+          <div style="flex:1; min-height:16px;"></div>
+          <div style="font-size:12px; margin-bottom:2px;">簽章：</div>
+          <div style="border-bottom:0.5px solid #999; min-height:44px;"></div>
         </div>
       </div>
       <div class="date-line">中　華　民　國　${ph(year,'　　')}　年　${ph(month,'　')}　月　${ph(day,'　')}　日</div>
     </div>
   `
+
+  // 產生雙頁：公司留存聯 + 顧客留存聯
+  const docHTML = document.getElementById('doc-output').innerHTML;
+  document.getElementById('doc-output').innerHTML =
+    '<div class="print-page">' + docHTML +
+    '<div class="page-footer-label">公司留存聯｜請交回銘勁汽車顧客關係部留存備查</div></div>' +
+    '<div class="page-break"></div>' +
+    '<div class="print-page">' + docHTML +
+    '<div class="page-footer-label">顧客留存聯｜核銷方案時請向服務人員出示本協議書</div></div>';
 
   document.getElementById('doc-output').style.display = 'block';
   document.getElementById('doc-preview-placeholder').style.display = 'none';
@@ -861,24 +916,59 @@ function renderRecords() {
   const wrap = document.getElementById('records-table-wrap');
   if (!wrap) return;
   if (records.length === 0) {
-    wrap.innerHTML = '<div class="rec-empty">' + (kw ? '找不到符合的紀錄' : '尚無紀錄，產生協議書後點擊「儲存至紀錄」') + '</div>';
+    wrap.innerHTML = '<div class="rec-empty">' + (kw ? '找不到符合的紀錄' : '尚無紀錄，產生協議書後點擊「儲存檔案」') + '</div>';
     return;
   }
   let rows = '';
   records.forEach(function(r) {
     rows += '<tr><td class="rec-no">' + esc(r.id) + '</td>' +
-      '<td>' + esc(r.date) + '</td>' +
+      '<td style="max-width:160px;color:#444;font-size:12px;">' + esc((r.reason||'').substring(0,25)) + ((r.reason||'').length>25?'…':'') + '</td>' +
       '<td>' + esc(r.branch) + '</td>' +
       '<td><strong>' + esc(r.plate) + '</strong></td>' +
       '<td>' + esc(r.name) + '</td>' +
       '<td>' + esc(r.model||'') + (r.color ? ' / '+esc(r.color) : '') + '</td>' +
-      '<td style="max-width:160px;color:#666;font-size:11px;">' + esc(r.reason||'') + '</td>' +
+      '<td style="white-space:nowrap;font-size:12px;color:#666;">' + esc(r.date||'') + '</td>' +
       '<td><button class="btn-del-rec" onclick="deleteRecord(\'' + r.id + '\')">刪除</button></td></tr>';
   });
   wrap.innerHTML = '<table class="rec-table"><thead><tr>' +
-    '<th>編號</th><th>日期</th><th>責任單位</th><th>車號</th><th>消費者姓名</th><th>車型／車色</th><th>原因</th><th></th>' +
+    '<th>編號</th><th>原因</th><th>責任單位</th><th>車號</th><th>消費者姓名</th><th>車型／車色</th><th>日期</th><th></th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
 }
+async function saveAndPrint() {
+  const doc = document.getElementById('doc-output');
+  if (!doc || doc.style.display === 'none') { alert('請先產生協議書預覽再列印'); return; }
+  await saveRecord();
+  window.print();
+}
+
+function savePDF() {
+  const doc = document.getElementById('doc-output');
+  if (!doc || doc.style.display === 'none') { alert('請先產生協議書預覽再存 PDF'); return; }
+  const name   = document.getElementById('f-name')?.value || '';
+  const plate  = document.getElementById('f-plate')?.value || '';
+  const branch = document.getElementById('f-branch')?.value || '';
+  const filename = 'MG協議書_' + (branch||'') + '_' + (name||'') + '_' + (plate||'未填車牌') + '.pdf';
+
+  const btn = event.target;
+  btn.textContent = '⏳ 產生中...';
+  btn.disabled = true;
+
+  html2pdf().set({
+    margin: [6, 10, 6, 10],
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(doc).save().then(() => {
+    btn.textContent = '⬇ 存 PDF';
+    btn.disabled = false;
+  }).catch(e => {
+    btn.textContent = '⬇ 存 PDF';
+    btn.disabled = false;
+    alert('PDF 產生失敗，請改用列印功能');
+  });
+}
+
 function exportCSV() {
   const records = loadRecords();
   if (records.length === 0) { alert('目前沒有紀錄可匯出'); return; }
